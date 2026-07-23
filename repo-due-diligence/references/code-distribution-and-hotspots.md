@@ -29,7 +29,7 @@ State the exclusion list in `appendix-evidence-index.md` as part of the analysis
 
 ## LOC Distribution Buckets
 
-Measure and report distribution across these buckets. Not all buckets apply to every repository; mark inapplicable ones as `不适用`.
+Measure and report distribution across these buckets. Not all buckets apply to every repository; mark inapplicable ones with the report language's not-applicable label.
 
 1. **Language / file type**: lines per language (TypeScript, Python, Go, SQL, etc.) and per significant file extension.
 2. **Top-level directory**: lines per first-level directory, excluding the default exclusions above.
@@ -58,11 +58,11 @@ Attribute a file or directory to the domain bucket only when ownership is suppor
 
 ### Confidence Classification
 
-- `事实`: ownership is structurally clear from directory or package name matching the domain vocabulary, or from an explicit architectural declaration. State the evidence.
-- `推断`: inferred from naming conventions, documentation proximity, or code patterns without a direct structural declaration. State the inference rule and its limitations.
-- `证据不足`: stable domain-to-path attribution is not possible from static evidence. Do not estimate; mark as `证据不足` and list what was checked.
+- **Fact**: ownership is structurally clear from a directory or package name matching the domain vocabulary, or from an explicit architectural declaration. State the evidence.
+- **Inference**: ownership is inferred from naming conventions, documentation proximity, or code patterns without a direct structural declaration. State the inference rule and its limitations.
+- **Insufficient evidence**: stable domain-to-path attribution is not possible from static evidence. Do not estimate; use the localized insufficient-evidence label and list what was checked.
 
-Do not blend `事实` and `推断` items into a single aggregate number without labeling which items carry which confidence.
+Localize these classification labels to the report language. Do not blend fact and inference items into a single aggregate number without labeling which items carry which confidence.
 
 ### Domain LOC Report Format
 
@@ -70,16 +70,16 @@ Domain LOC reports the line count attributed to each domain or bounded context w
 
 When the domain-to-path mapping is sufficiently evidenced, report using this table schema. The rows below are schema examples only; reports must replace every placeholder with an evidence-backed count from the corresponding `E-###` entry, or omit the row entirely if evidence is absent. Never fill in concrete numbers without a matching evidence entry.
 
-| 领域 / Bounded Context | 路径 | LOC | 分类 | 置信度 | 证据 |
+| Domain / Bounded Context | Path | LOC | Classification | Confidence | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| `<domain name>` | `<path>` | `<LOC from E-###>` | 事实 | 高 | `<E-###: explicit architectural declaration or directory matches domain vocabulary>` |
-| `<domain name>` | `<path>` | `<LOC from E-###>` | 推断 | 中 | `<E-###: naming convention corroborated by partial docs>` |
-| `<domain name>` | `<path>` | `<LOC from E-###>` | 推断 | 低 | `<E-###: naming convention only, no corroborating documentation>` |
-| 跨域 / 基础设施 | `<path>` | `<LOC from E-###>` | 不适用 | — | `<E-###: shared utilities or framework plumbing, no single domain owner>` |
+| `<domain name>` | `<path>` | `<LOC from E-###>` | `<localized fact label>` | `<localized high label>` | `<E-###: explicit architectural declaration or directory matches domain vocabulary>` |
+| `<domain name>` | `<path>` | `<LOC from E-###>` | `<localized inference label>` | `<localized medium label>` | `<E-###: naming convention corroborated by partial docs>` |
+| `<domain name>` | `<path>` | `<LOC from E-###>` | `<localized inference label>` | `<localized low label>` | `<E-###: naming convention only, no corroborating documentation>` |
+| `<cross-domain / infrastructure>` | `<path>` | `<LOC from E-###>` | `<localized not-applicable label>` | `—` | `<E-###: shared utilities or framework plumbing, no single domain owner>` |
 
 Follow the table with one or two sentences stating what the distribution implies for change risk, ownership clarity, or boundary health. Do not write a narrative per row.
 
-When a domain-to-path mapping cannot be established from static evidence, skip the table and record `证据不足` with a note listing what was checked (directory names, package declarations, CONTEXT.md, architecture docs).
+Localize the table headings and classification values to the report language. When a domain-to-path mapping cannot be established from static evidence, skip the table and record insufficient evidence using the localized label, with a note listing what was checked (directory names, package declarations, `CONTEXT.md`, architecture docs).
 
 In addition to the table, include:
 
@@ -121,7 +121,7 @@ A hotspot is a file or module that combines high complexity signals with high ch
 - Complexity signals observed (size, nesting, fan-in/out).
 - Churn signals observed (commit frequency, diff size).
 - Relevance to domain or critical path when evidenced.
-- Confidence (`高` / `中` / `低`).
+- Confidence using the localized high, medium, or low label.
 
 ---
 

@@ -15,7 +15,7 @@ When analyzing a repository, the goal is to:
 3. Map domain concepts to code paths with evidence.
 4. Surface ADR suggestions worth raising — not write the ADRs.
 
-Do not manufacture a domain model for utility, infrastructure-only, or tooling repositories. Mark `03-domain-model.md` as `不适用` when no domain concepts are evidenced.
+Do not manufacture a domain model for utility, infrastructure-only, or tooling repositories. Mark `03-domain-model.md` as not applicable using the report language when no domain concepts are evidenced.
 
 ---
 
@@ -47,7 +47,7 @@ For each confirmed domain concept, record:
 - Canonical term as used in the codebase.
 - Module, package, or file path where it is primarily defined.
 - Whether the same concept appears under different names elsewhere.
-- Confidence: `事实` when a direct structural mapping exists (class name, directory name); `推断` when inferred from naming conventions or documentation.
+- Confidence: fact when a direct structural mapping exists (class name, directory name); inference when inferred from naming conventions or documentation. Localize these labels to the report language.
 
 ---
 
@@ -62,7 +62,7 @@ Classify concepts only when static evidence supports the classification. Do not 
 - **Domain Event**: a record of something that happened in the domain. Evidence: event classes, event bus, or event-sourcing infrastructure.
 - **State Transition**: documented lifecycle of an entity or aggregate. Evidence: status fields with a known set of values, transition guards, state machine code.
 
-Mark all classifications as `推断` unless the codebase explicitly uses DDD terminology or the structure is unambiguous. When evidence is insufficient to classify, say `证据不足` and list what was checked.
+Mark all classifications as inference unless the codebase explicitly uses DDD terminology or the structure is unambiguous. When evidence is insufficient to classify, use the report language's insufficient-evidence label and list what was checked.
 
 ---
 

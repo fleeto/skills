@@ -26,14 +26,14 @@ Default exclusions from `code-distribution-and-hotspots.md` (generated, vendored
 ## Coverage Declaration
 
 - In `appendix-evidence-index.md`, record: the selection rules applied, the thresholds used (churn window, largest-file cutoff), per-directory sample ratios, and an overall coverage estimate (files read / files in scope).
-- In each chapter whose conclusions rest on sampled scope, state the coverage basis in one line (for example, `基于约 35% 抽样，选择规则见附录`).
-- Confidence for sampled-scope conclusions is capped at `中` unless corroborated by an independent signal (documentation, tests, or CI configuration).
+- In each chapter whose conclusions rest on sampled scope, state the coverage basis in one line (for example, "Based on an approximately 35% sample; see the appendix for selection rules," localized to the report language).
+- Confidence for sampled-scope conclusions is capped at medium using the localized label unless corroborated by an independent signal (documentation, tests, or CI configuration).
 
 ---
 
 ## Guards Against False Confidence
 
-- Never claim absence from sampled evidence. Write `在抽样范围内未发现` with the coverage figure, not `不存在`.
+- Never claim absence from sampled evidence. State that an item was not found within the sampled scope and include the coverage figure; do not state that it does not exist.
 - Do not use `DEAD-UNREACHABLE` under sampling; it requires a closed, fully inspected scope (see `code-hygiene-taxonomy.md`). Use `DEAD-UNRESOLVED` instead.
 - Do not produce repository-wide LOC or distribution totals from sampled scope; report the measured subset and name it as such.
 - Security conclusions (chapter `09-security.md`) must not rest on sampling alone: every security-relevant sink class (authentication, injection, secret handling, tenant isolation) requires either full coverage of its known locations or an explicit `H-###` covering the unexamined remainder.

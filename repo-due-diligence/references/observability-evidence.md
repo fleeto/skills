@@ -1,6 +1,6 @@
 # Observability Evidence
 
-This file defines how to assess a repository's observability posture from static, read-only evidence: what signals to look for, how to grade them, and how to avoid over-claiming. All conclusions remain `静态分析结论，未经运行验证` — static presence of an SDK, rule file, or endpoint does not prove that dashboards exist, alerts fire, or anyone reviews them.
+This file defines how to assess a repository's observability posture from static, read-only evidence: what signals to look for, how to grade them, and how to avoid over-claiming. Qualify all conclusions in the report language as static-analysis conclusions that were not runtime-verified: the presence of an SDK, rule file, or endpoint does not prove that dashboards exist, alerts fire, or anyone reviews them.
 
 ---
 
@@ -25,7 +25,7 @@ Inspect each category as text evidence and record findings with `E-###` entries.
 
 - SDK or agent presence: OpenTelemetry, Jaeger, Zipkin, vendor tracing libraries.
 - Instrumentation: middleware, interceptors, decorators, or manual span creation on critical paths; context propagation across process and service boundaries (headers, queue message metadata).
-- Auto-instrumentation caveat: Java agents, eBPF, and service meshes can produce traces with little visible code. When the stack suggests agent-based tracing, record `推断` with the basis and consider an `H-###` to confirm.
+- Auto-instrumentation caveat: Java agents, eBPF, and service meshes can produce traces with little visible code. When the stack suggests agent-based tracing, record an inference using the localized label, state its basis, and consider an `H-###` to confirm.
 
 ### Alerting
 
@@ -39,7 +39,7 @@ Inspect each category as text evidence and record findings with `E-###` entries.
 ### Dashboards
 
 - Dashboards-as-code: Grafana JSON or provisioning, Datadog/CloudWatch definitions in Terraform or config files.
-- Absence of dashboard code does not prove absence of dashboards — they may live entirely in a SaaS UI. Record `证据不足` and raise an `H-###` rather than concluding "no dashboards".
+- Absence of dashboard code does not prove absence of dashboards — they may live entirely in a SaaS UI. Record insufficient evidence using the localized label and raise an `H-###` rather than concluding "no dashboards".
 
 ---
 
@@ -47,10 +47,12 @@ Inspect each category as text evidence and record findings with `E-###` entries.
 
 Grade each category in the owning chapter:
 
-- `有证据` — concrete project-specific definitions exist in the repository (config, rules, call sites).
-- `仅框架默认` — only library or framework defaults are visible; no project-specific definitions.
-- `无证据` — nothing found; list what was searched.
-- `不适用` — the category does not apply to this repository type (for example, a CLI with no metrics endpoint).
+- **Evidence present** — concrete project-specific definitions exist in the repository (config, rules, call sites).
+- **Framework defaults only** — only library or framework defaults are visible; no project-specific definitions.
+- **No evidence found** — nothing was found; list what was searched.
+- **Not applicable** — the category does not apply to this repository type (for example, a CLI with no metrics endpoint).
+
+Localize these four grade labels to the report language and use them consistently throughout the report.
 
 Map grades against the critical paths identified in `02-use-case-model.md`: observability gaps matter most on externally-facing and business-critical paths. A gap on a critical path is a materially stronger finding than a gap in aggregate.
 
@@ -58,7 +60,7 @@ Map grades against the critical paths identified in `02-use-case-model.md`: obse
 
 ## False-Positive and Over-Claiming Cautions
 
-- An imported library is not evidence of use; confirm call sites or initialization before grading above `无证据`.
+- An imported library is not evidence of use; confirm call sites or initialization before assigning a grade above no evidence found.
 - Configuration presence is not evidence of functioning pipelines; qualify every posture statement as unverified at runtime.
 - Stale alert rules and dead dashboards are common; when Git history shows no maintenance of these files, note it.
 - Never claim that alerts will fire, dashboards are reviewed, or on-call is staffed from static evidence. Route these questions to `H-###`.

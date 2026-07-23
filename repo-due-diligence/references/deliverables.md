@@ -9,7 +9,7 @@ This file is the canonical output contract for the `repo-due-diligence` skill. K
 - Always create the core files. Create conditional chapters only when applicable; record every omission and its status in `README.md`.
 - A core chapter with little evidence may be a single paragraph recording what was checked and why nothing more is reportable. Do not expand it to fill the file.
 - Chapter numbers encode reading order, not identity. When a new chapter is inserted into this contract, renumber subsequent chapters in the same change and update every cross-reference across all skill files. Never use letter suffixes (`08a`) or append a chapter out of reading order.
-- Use `不适用` only when repository type or explicit evidence establishes that a concept is outside scope. Otherwise use `证据不足` and list the paths or patterns checked.
+- Use the report language's not-applicable label only when repository type or explicit evidence establishes that a concept is outside scope. Otherwise use the localized insufficient-evidence label and list the paths or patterns checked.
 - Define canonical items once and reference their identifiers elsewhere. Never duplicate full findings.
 - Use `E-###` for evidence, `R-###` for risks, `S-###` for strengths, `REC-###` for recommendations, and `H-###` for human-confirmation items.
 - Preserve companion code-hygiene IDs `DUP-###`, `DEAD-###`, and `CMT-###`. Convert returned evidence descriptors directly into this report's `E-###` register; do not create a second evidence namespace.
@@ -83,12 +83,12 @@ A strength is an evidence-backed asset that changes a decision: something worth 
 
 **Shared scales:**
 
-- Severity: `严重`, `高`, `中`, `低` based on potential impact; describe likelihood separately only when evidence supports it.
-- Confidence: `高`, `中`, `低` based on evidence completeness.
+- Severity: the localized equivalents of critical, high, medium, and low based on potential impact; describe likelihood separately only when evidence supports it.
+- Confidence: the localized equivalents of high, medium, and low based on evidence completeness.
 - Priority: `P0` immediate containment, `P1` next planned change, `P2` planned improvement, `P3` backlog.
 - Effort: `S`, `M`, `L`, with repository-specific assumptions stated once.
 
-Write material findings with a stable information model: classification (`事实` or `推断`), conclusion, evidence IDs, confidence, impact, and related `R`/`REC`/`H` IDs. Do not force all fields into one sentence. Put identifiers at paragraph ends or on a short `关联` line when that reads more naturally.
+Write material findings with a stable information model: classification (fact or inference, localized to the report language), conclusion, evidence IDs, confidence, impact, and related `R`/`REC`/`H` IDs. Do not force all fields into one sentence. Put identifiers at paragraph ends or on a short localized related-items line when that reads more naturally.
 
 ---
 
@@ -99,7 +99,7 @@ Keep `README.md` concise:
 - Project one-line description.
 - Three to five key conclusions with canonical IDs, written as direct answers rather than register rows.
 - Global table of contents.
-- Canonical chapters omitted as `不适用` or `证据不足`, with a brief reason for each.
+- Canonical chapters omitted as not applicable or insufficient evidence, using localized labels and a brief reason for each.
 - Role-based reading paths for managers, architects, incoming engineers, security reviewers, and operations/SRE.
 - Up to five urgent risks or next actions, selected for orientation and linked to the complete registers in `00-executive-summary.md`. Do not reproduce the complete risk or recommendation register.
 - Links to diagrams and the evidence index.
@@ -114,16 +114,16 @@ This contract is the single definition of readability rules for this skill; `SKI
 
 Apply this contract to `README.md` and chapters `00` through `12`. Keep the evidence appendix compact and factual.
 
-- Start each chapter with one or two sentences that answer "本章说明什么" and, when material, "读完应做什么". Skip this opener when the chapter is shorter than a screen and the title is self-explanatory.
+- Start each chapter with one or two sentences that explain what the chapter covers and, when material, what the reader should do next. Skip this opener when the chapter is shorter than a screen and the title is self-explanatory.
 - Use one main conclusion per paragraph. Prefer two short paragraphs over one that combines cause, impact, remediation, acceptance criteria, and rollback.
-- Write in complete sentences. Every bullet or list item needs a subject and a verb and must be understandable on its own. An identifier is not a sentence: never compress a point into a fragment such as "收益：R-007。" Place IDs at the end of the sentence or on a `关联` line.
+- Write in complete sentences. Every bullet or list item needs a subject and a verb and must be understandable on its own. An identifier is not a sentence: never compress a point into a fragment such as "Benefit: R-007." Place IDs at the end of the sentence or on a short related-items line localized to the report language.
 - Guard against over-compression, not only against filler. The evidence-driven style of this report tends toward telegram prose (dropped subjects, stacked nouns, cryptic fragments). If a sentence only makes sense to the analyst who wrote it, rewrite it for the reader.
-- Prefer concrete Chinese: name the component, action, failure, or owner. Avoid abstract consulting language when a direct statement is available (for example "态势", "版图", "深化", "闭环", "形成变更放大器").
-- Explain uncommon English terms on first use, for example `默认拒绝（fail-closed）` or `本地事件表（outbox）`. Do not mix Chinese and English merely for tone.
-- Use canonical Chinese names for the report's own artifacts: 登记册 for registers (风险/优势/建议/人工确认/证据登记册). Do not calque English contract terms into Chinese — 寄存器 means a CPU register. Code, protocol, and file names stay in English.
+- Prefer concrete language: name the component, action, failure, or owner. Avoid abstract consulting language when a direct statement is available.
+- Explain uncommon foreign or imported terms on first use. Do not mix languages merely for tone.
+- Use idiomatic, consistent names in the report language for report-owned artifacts such as the risk, strength, recommendation, human-confirmation, and evidence registers. When writing Chinese, use `登记册`, not the CPU term `寄存器`. Code, protocol, and file names stay in their original form.
 - Reserve tables for exact mappings, registers, and comparisons with repeated fields. Use prose or short lists for explanation. Do not present the same table or full register in two files.
-- Keep canonical IDs, but group them at paragraph ends or in `关联` lines. Evidence-heavy prose should remain readable without mentally resolving every ID inline.
-- Use `事实` and `推断` labels where they prevent ambiguity. Do not mechanically bold-label every paragraph.
+- Keep canonical IDs, but group them at paragraph ends or in localized related-items lines. Evidence-heavy prose should remain readable without mentally resolving every ID inline.
+- Use localized fact and inference labels where they prevent ambiguity. Do not mechanically bold-label every paragraph.
 - Avoid slogan-like titles, three-part rhetorical lists, repeated sentence templates, filler transitions, exaggerated significance, and vague attribution.
 - The report voice is calm, specific, and technically opinionated. Do not add first-person reactions, humor, anecdotes, promotional language, or false certainty.
 
@@ -159,7 +159,7 @@ For a monorepo or multi-service repository, include a deployable-unit inventory 
 - Ubiquitous language and inconsistent terminology.
 - Entities, value objects, aggregates, domain services, events, rules, state transitions, and lifecycle when evidenced.
 - Domain-concept-to-code mapping and domain-model maturity.
-- Mark non-domain utility repositories as `不适用` instead of manufacturing a domain model.
+- Mark non-domain utility repositories as not applicable using the report language instead of manufacturing a domain model.
 
 ### `04-codebase-structure.md`
 
@@ -208,7 +208,7 @@ For a monorepo or multi-service repository, include a deployable-unit inventory 
 - Test framework, types, distribution, and declared entrypoints from static inspection.
 - The production-vs-test ratio is measured once in `04-codebase-structure.md`; this chapter interprets its DX impact without repeating the table.
 - Existing coverage reports and trends, CI test and coverage gates, critical-path gaps, and up to ten highest-value test additions.
-- State `未发现现有覆盖度报告/声明命令` when appropriate. Never infer coverage percentages.
+- State in the report language that no existing coverage report or declared command was found when appropriate. Never infer coverage percentages.
 - Confirm explicitly that applications, tests, builds, lint, type checks, coverage, migrations, and startup were not run.
 
 ### `11-refactoring-roadmap.md`

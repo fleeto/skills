@@ -1,13 +1,13 @@
 ---
 name: repo-due-diligence
-description: Static, read-only Chinese repository onboarding and technical due diligence workflow. Use when analyzing an unfamiliar codebase without executing code, including architecture, domain model, module boundaries, security, data, code distribution, hygiene findings, diagrams, risks, and refactoring recommendations.
+description: Static, read-only, language-adaptive repository onboarding and technical due diligence workflow. Use when analyzing an unfamiliar codebase without executing code, including architecture, domain model, module boundaries, security, data, code distribution, hygiene findings, diagrams, risks, and refactoring recommendations.
 ---
 
 # Repository Onboarding Due Diligence
 
 ## Goal
 
-Treat an unfamiliar repository as static evidence. Produce a concise, readable, evidence-backed Chinese onboarding report for technical leads, architects, incoming engineers, security reviewers, and managers.
+Treat an unfamiliar repository as static evidence. Produce a concise, readable, evidence-backed onboarding report for technical leads, architects, incoming engineers, security reviewers, and managers.
 
 This skill is **static and read-only** for every target repository it examines. It never executes, modifies, or installs anything from the target codebase.
 
@@ -19,11 +19,19 @@ This skill is **static and read-only** for every target repository it examines. 
 
 Create `docs/repo-due-diligence.md` only when the user explicitly requests a single-file archive.
 
+## Language Policy
+
+- Honor any explicit language requested for the report or handoff.
+- When the user does not specify a language, use the predominant language of the user's current request.
+- Keep report-authored prose, headings, labels, statuses, severity levels, and confidence levels consistent in that language. Keep code, protocol names, file paths, and stable identifiers unchanged.
+- Treat terms shown in this skill or its references as semantic concepts, not mandatory output literals. Localize concepts such as fact, inference, risk, recommendation, not applicable, and insufficient evidence into the report language.
+- Do not produce a bilingual report unless the user explicitly requests one.
+
 ## External Fallback Boundaries
 
 The following companion workflows are **not merged into this skill** and are **not mandatory**. Invoke them according to the rules below for each workflow.
 
-- `humanizer-zh`: optional external editorial pass for removing AI-generated prose patterns from Chinese report chapters. Availability check and fallback rules live in step 3.1; readability rules are defined once in `references/deliverables.md` (Readability Contract).
+- `humanizer-zh`: optional external editorial pass used only when the selected report language is Chinese. Availability check and fallback rules live in step 3.1; language-independent readability rules are defined once in `references/deliverables.md` (Readability Contract).
 - `excalidraw-diagram-generator`: optional supplementary asset. Excalidraw output is never a substitute for a required report diagram. Mermaid is the default diagram format for all report chapters.
 
 ## Non-Negotiable Constraints
@@ -35,7 +43,7 @@ The following companion workflows are **not merged into this skill** and are **n
 - Do not install repository or global dependencies. When optional tooling is unavailable, report the limitation and use a non-executing fallback.
 - Allow only read-only commands that treat files as data: `rg`, `find`, file metadata tools, safe text and statistics processing, and Git reads with repository-controlled helpers disabled. Use `git --no-pager -c core.fsmonitor=false`; add `--no-ext-diff --no-textconv` to diff commands.
 - **Never print secrets, tokens, certificates, private connection strings, internal hostnames, or sensitive configuration values.** Cite the risk type and file path only.
-- Separate `事实`, `推断`, `风险`, and `建议`. Mark runtime-dependent conclusions as `静态分析结论，未经运行验证` or `证据不足`.
+- Separate facts, inferences, risks, and recommendations using labels localized according to the Language Policy. Mark runtime-dependent conclusions as static-analysis conclusions that were not runtime-verified, or as insufficient evidence.
 - Cite every material conclusion with `E-###` identifiers. Define source paths, read-only commands, existing reports, and Git references only in the evidence register.
 - Never claim that tests, builds, startup, migrations, or runtime behavior passed verification.
 
@@ -64,7 +72,7 @@ Cover only evidence-backed aspects of these tracks:
 7. Tests, existing coverage evidence, CI/CD, documentation, and developer experience.
 8. Risks, strengths, human-confirmation needs, and staged recommendations.
 
-For every track, return evidence, conclusions, uncertainty, and follow-up. Mark absent concepts as `不适用`; do not invent content to fill a section.
+For every track, return evidence, conclusions, uncertainty, and follow-up. Mark absent concepts as not applicable using the report language; do not invent content to fill a section.
 
 When the scope supports cross-file review, apply the local code-hygiene taxonomy in `references/code-hygiene-taxonomy.md` to identify `DUP-###`, `DEAD-###`, and `CMT-###` findings with evidence descriptors. Assign findings directly into the onboarding `E-###` register and keep false-positive and confidence qualifications. If a standalone external hygiene audit is separately requested by the user, integrate its output as additional evidence without making it mandatory or blocking the report.
 
@@ -86,7 +94,7 @@ Before writing, record which required diagrams from `references/diagram-rules.md
 
 Read `references/deliverables.md` before writing when it is present. When present, treat it as the single source of truth for filenames, chapter ownership, identifiers, and readability rules. Diagram requirements always follow `references/diagram-rules.md`. When `references/deliverables.md` is absent, apply the chapter list in the Reference Contracts section below and use conservative defaults.
 
-Create the core chapters and only the applicable conditional chapters. Record every omitted canonical chapter and its `不适用` or `证据不足` reason in `README.md`. Define each risk, strength, recommendation, confirmation item, and evidence item once, then reference its stable identifier elsewhere.
+Create the core chapters and only the applicable conditional chapters. Record every omitted canonical chapter and its localized not-applicable or insufficient-evidence reason in `README.md`. Define each risk, strength, recommendation, confirmation item, and evidence item once, then reference its stable identifier elsewhere.
 
 Never pad ranked lists. "Top N" means up to N evidence-backed items.
 
@@ -94,7 +102,7 @@ Diagram obligations — the required diagram set, trigger gates, and the `## Dia
 
 ### 3.1 Readability Pass
 
-After the first complete draft, review all report chapters for readability. Check whether the `humanizer-zh` skill is available in the current environment. If it is available, invoke it now as an external workflow on the generated Markdown chapters.
+After the first complete draft, review all report chapters for readability. When the selected report language is Chinese, check whether the `humanizer-zh` skill is available in the current environment. If it is available, invoke it now as an external workflow on the generated Markdown chapters. For other report languages, or when `humanizer-zh` is unavailable, perform the same full read-through using the language-independent Readability Contract; the absence of a language-specific editorial skill must not block delivery.
 
 The pass is a full read-through of every chapter, not only a pattern scan. Grep-style scans for AI vocabulary are a pre-filter; they cannot catch over-compressed, fragmentary prose, which is the most common failure mode of this report's evidence-driven style. The pass is complete only when every chapter has been read end-to-end and cryptic fragments rewritten into complete sentences.
 
@@ -151,7 +159,7 @@ When a reference file is absent, continue with the defaults documented in this s
 
 ## Final Response
 
-Return a concise Chinese handoff containing:
+Return a concise handoff in the report language containing:
 
 - Skills used and any materially relevant skipped skills.
 - Generated files and their paths.

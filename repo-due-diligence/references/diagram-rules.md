@@ -93,10 +93,10 @@ Do not create empty diagrams.
 Every chapter that owns a required diagram must append a `## Diagram decision` section recording exactly one outcome per applicable required diagram type:
 
 - **Created** — diagram type, format (Mermaid / C4 / Excalidraw), and a one-line description of what it shows.
-- **不适用** — the trigger condition is outside scope for this repository; state the specific reason.
-- **证据不足** — evidence was sought but not found; list the files, patterns, or paths checked.
+- **Not applicable** — localize this status to the report language; use it when the trigger condition is outside scope for this repository, and state the specific reason.
+- **Insufficient evidence** — localize this status to the report language; use it when evidence was sought but not found, and list the files, patterns, or paths checked.
 
-A missing or blank `## Diagram decision` section in a chapter owning a required diagram is a QA failure. Recording `不适用` or `证据不足` is valid only when the trigger is genuinely unmet or evidence is absent. Chapters with only optional diagrams do not need this section.
+A missing or blank `## Diagram decision` section in a chapter owning a required diagram is a QA failure. Recording a localized not-applicable or insufficient-evidence status is valid only when the trigger is genuinely unmet or evidence is absent. Chapters with only optional diagrams do not need this section.
 
 ---
 
@@ -115,4 +115,4 @@ Before marking a diagram as complete:
 
 ## Evidence Constraint
 
-Do not invent relationships. Every element and every relationship in a report diagram must be backed by an `E-###` evidence entry or by a directly observed file, symbol, or configuration value cited in the owning chapter. When evidence is absent, record `证据不足` in the `## Diagram decision` section for required diagrams, and omit optional diagrams rather than speculating.
+Do not invent relationships. Every element and every relationship in a report diagram must be backed by an `E-###` evidence entry or by a directly observed file, symbol, or configuration value cited in the owning chapter. When evidence is absent, record the localized insufficient-evidence status in the `## Diagram decision` section for required diagrams, and omit optional diagrams rather than speculating.

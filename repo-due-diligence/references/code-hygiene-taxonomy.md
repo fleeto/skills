@@ -10,15 +10,17 @@ Source: distilled from `static-code-hygiene-audit/references/taxonomy.md`. The c
 
 ### Confidence Scale
 
-- `高`: Evidence covers the relevant scope and closes the main alternative explanations.
-- `中`: Evidence is strong, but dynamic loading, external consumers, intentional variation, or incomplete scope remains possible.
-- `低`: The finding is based on a limited heuristic or incomplete search; useful only as a review lead.
+- **High**: Evidence covers the relevant scope and closes the main alternative explanations.
+- **Medium**: Evidence is strong, but dynamic loading, external consumers, intentional variation, or incomplete scope remains possible.
+- **Low**: The finding is based on a limited heuristic or incomplete search; useful only as a review lead.
 
 ### Maintenance Impact Scale
 
-- `高`: Likely to cause inconsistent business behavior, security or data defects, broad change amplification, or unsafe removal decisions.
-- `中`: Creates recurring maintenance cost, misleading understanding, or localized divergence risk.
-- `低`: Mostly readability or cleanup value with limited change risk.
+- **High**: Likely to cause inconsistent business behavior, security or data defects, broad change amplification, or unsafe removal decisions.
+- **Medium**: Creates recurring maintenance cost, misleading understanding, or localized divergence risk.
+- **Low**: Mostly readability or cleanup value with limited change risk.
+
+Localize both scales to the report language and use their labels consistently.
 
 ### Minimum Evidence Rule
 
