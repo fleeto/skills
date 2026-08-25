@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
+import gzip
 import hashlib
 import json
 import os
@@ -40,6 +41,24 @@ EPISODE_PART_RE = re.compile(r"(?i)e(\d{1,3})")
 class MetadataProvider(Protocol):
     def search_title(self, title: str, year: int | None, media_type: str | None) -> list[dict[str, Any]]:
         ...
+
+
+class MetadataUnavailableError(RuntimeError):
+    """The configured default metadata source is not available."""
+
+
+def metadata_score(wanted_title: str, record: dict[str, Any], year: int | None) -> float:
+    score = SequenceMatcher(None, normalize_text(wanted_title), normalize_text(str(record["title"]))).ratio()
+    if normalize_text(wanted_title) == normalize_text(str(record["title"])):
+        score = 1.0
+    record_year = record.get("year", record.get("start_year"))
+    if year and record_year:
+        try:
+            difference = abs(int(record_year) - year)
+        except (TypeError, ValueError):
+            difference = 99
+        score += 0.15 if difference == 0 else (-0.15 if difference > 1 else 0)
+    return score
 
     def get_title(self, imdb_id: str) -> dict[str, Any] | None:
         ...
@@ -74,22 +93,82 @@ class JsonMetadataProvider:
             record_type = str(record.get("media_type", "")).lower()
             if media_type and record_type != media_type:
                 continue
-            candidate = normalize_text(str(record["title"]))
-            score = SequenceMatcher(None, wanted, candidate).ratio()
-            if wanted == candidate:
-                score = 1.0
-            record_year = record.get("year", record.get("start_year"))
-            if year and record_year:
-                try:
-                    difference = abs(int(record_year) - year)
-                except (TypeError, ValueError):
-                    difference = 99
-                score += 0.15 if difference == 0 else (-0.15 if difference > 1 else 0)
-            scored.append((score, record))
+            scored.append((metadata_score(title, record, year), record))
         return [record for _, record in sorted(scored, key=lambda item: item[0], reverse=True)]
 
     def get_title(self, imdb_id: str) -> dict[str, Any] | None:
         return next((r for r in self.records if r.get("imdb_id") == imdb_id), None)
+
+
+class ImdbDatasetProvider:
+    """Provider for IMDb's public ``title.basics.tsv.gz`` dataset.
+
+    The dataset is downloaded separately by ``update_imdb_dataset.py``.  This
+    provider intentionally streams the compressed file and caches each query,
+    avoiding a dependency on an online API or a multi-gigabyte in-memory index.
+    """
+
+    MOVIE_TYPES = {"movie", "tvMovie"}
+    SERIES_TYPES = {"tvSeries", "tvMiniSeries", "tvSpecial"}
+
+    def __init__(self, data_dir: Path):
+        self.data_dir = data_dir.expanduser().resolve()
+        self.basics_path = self.data_dir / "title.basics.tsv.gz"
+        if not self.basics_path.is_file():
+            raise MetadataUnavailableError(
+                f"IMDb dataset not found: {self.basics_path}. "
+                "Run scripts/update_imdb_dataset.py or provide --metadata-file."
+            )
+        self._cache: dict[tuple[str, int | None, str | None], list[dict[str, Any]]] = {}
+
+    def search_title(self, title: str, year: int | None, media_type: str | None) -> list[dict[str, Any]]:
+        key = (normalize_text(title), year, media_type)
+        if key in self._cache:
+            return self._cache[key]
+        wanted_types = self.MOVIE_TYPES if media_type == "movie" else self.SERIES_TYPES if media_type == "series" else self.MOVIE_TYPES | self.SERIES_TYPES
+        scored: list[tuple[float, dict[str, Any]]] = []
+        with gzip.open(self.basics_path, "rt", encoding="utf-8", newline="") as handle:
+            header = next(handle).rstrip("\n").split("\t")
+            columns = {name: index for index, name in enumerate(header)}
+            for line in handle:
+                fields = line.rstrip("\n").split("\t")
+                title_type = fields[columns["titleType"]]
+                if title_type not in wanted_types:
+                    continue
+                start_year = fields[columns["startYear"]]
+                record: dict[str, Any] = {
+                    "imdb_id": fields[columns["tconst"]],
+                    "title": fields[columns["primaryTitle"]],
+                    "original_title": fields[columns["originalTitle"]],
+                    "media_type": "movie" if title_type in self.MOVIE_TYPES else "series",
+                }
+                if start_year != "\\N":
+                    record["year"] = int(start_year)
+                    if record["media_type"] == "series":
+                        record["start_year"] = int(start_year)
+                score = metadata_score(title, record, year)
+                if score >= 0.55:
+                    scored.append((score, record))
+        result = [record for _, record in sorted(scored, key=lambda item: item[0], reverse=True)]
+        self._cache[key] = result
+        return result
+
+    def get_title(self, imdb_id: str) -> dict[str, Any] | None:
+        with gzip.open(self.basics_path, "rt", encoding="utf-8", newline="") as handle:
+            header = next(handle).rstrip("\n").split("\t")
+            columns = {name: index for index, name in enumerate(header)}
+            for line in handle:
+                fields = line.rstrip("\n").split("\t")
+                if fields[columns["tconst"]] == imdb_id:
+                    media_type = fields[columns["titleType"]]
+                    return {
+                        "imdb_id": imdb_id,
+                        "title": fields[columns["primaryTitle"]],
+                        "original_title": fields[columns["originalTitle"]],
+                        "media_type": "movie" if media_type in self.MOVIE_TYPES else "series",
+                        "year": None if fields[columns["startYear"]] == "\\N" else int(fields[columns["startYear"]]),
+                    }
+        return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -205,7 +284,7 @@ def sidecar_candidates(video: Path, sidecars: Iterable[Path]) -> list[Path]:
 
 def match_metadata(item: MediaItem, provider: MetadataProvider | None) -> None:
     if provider is None:
-        item.status, item.reason = "UNMATCHED", "No Metadata Provider was configured"
+        item.status, item.reason = "METADATA_UNAVAILABLE", "No usable Metadata Provider was configured"
         return
     requested_type = "series" if item.parsed.season is not None else None
     candidates = provider.search_title(item.parsed.title, item.parsed.year, requested_type)
@@ -411,7 +490,20 @@ def process(args: argparse.Namespace) -> dict[str, Any]:
         if any(path_is_within(source_root, root) or path_is_within(root, source_root)
                for root in (movie_library, series_library)):
             raise ValueError("source_path and library paths must not overlap in import mode")
-    provider = JsonMetadataProvider.from_file(Path(args.metadata_file)) if args.metadata_file else None
+    provider_error: str | None = None
+    if args.metadata_file:
+        provider: MetadataProvider | None = JsonMetadataProvider.from_file(Path(args.metadata_file))
+    else:
+        dataset_dir = Path(args.metadata_dir or os.environ.get(
+            "IMDB_DATASET_DIR", str(Path.home() / ".cache" / "media-library-organizer" / "imdb")
+        ))
+        try:
+            provider = ImdbDatasetProvider(dataset_dir)
+        except MetadataUnavailableError as exc:
+            provider = None
+            provider_error = str(exc)
+        else:
+            provider_error = None
     videos, sidecars = scan_files(source_root)
     results: list[dict[str, Any]] = []
     associated_sidecars: set[Path] = set()
@@ -423,6 +515,8 @@ def process(args: argparse.Namespace) -> dict[str, Any]:
         item = MediaItem(video, sidecar_candidates(video, sidecars), parsed)
         associated_sidecars.update(item.sidecars)
         match_metadata(item, provider)
+        if item.status == "METADATA_UNAVAILABLE":
+            item.reason = provider_error
         if item.status != "MATCHED":
             results.append(item.result(error_code=item.status))
             continue
@@ -456,7 +550,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--library-path", help="Library root for organize mode")
     parser.add_argument("--movie-library-path")
     parser.add_argument("--series-library-path")
-    parser.add_argument("--metadata-file", help="JSON metadata catalog; omit to make all items UNMATCHED")
+    parser.add_argument("--metadata-file", help="JSON metadata catalog; omit to use the default IMDb dataset provider")
+    parser.add_argument("--metadata-dir", help="IMDb dataset directory; defaults to IMDB_DATASET_DIR or ~/.cache/media-library-organizer/imdb")
     parser.add_argument("--dry-run", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--report", type=Path, help="Write the structured report to this JSON file")
     return parser

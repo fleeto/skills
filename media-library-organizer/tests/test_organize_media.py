@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import unittest
@@ -108,6 +109,36 @@ class OrganizerTests(unittest.TestCase):
         ))
         self.assertEqual(report["counts"].get("PLANNED"), 1)
         self.assertEqual(report["counts"].get("UNMATCHED_SIDECAR"), 1)
+
+    def test_default_imdb_dataset_provider_matches_without_json_catalog(self):
+        dataset_dir = self.root / "imdb"
+        dataset_dir.mkdir()
+        header = "tconst\ttitleType\tprimaryTitle\toriginalTitle\tisAdult\tstartYear\tendYear\truntimeMinutes\tgenres\n"
+        row = "tt0074887\tmovie\tThe Magic Blade\tThe Magic Blade\t0\t1976\t\\N\t105\tAction\n"
+        with gzip.open(dataset_dir / "title.basics.tsv.gz", "wt", encoding="utf-8") as handle:
+            handle.write(header + row)
+        video = self.downloads / "[TTG] The.Magic.Blade.1976.1080p.BluRay.x265.10bit.LPCM-WiKi.mkv"
+        video.write_bytes(b"movie")
+
+        report = process(self.args(
+            "--mode", "import", "--source-path", str(self.downloads),
+            "--movie-library-path", str(self.movies), "--series-library-path", str(self.tv),
+            "--metadata-dir", str(dataset_dir), "--dry-run",
+        ))
+
+        self.assertEqual(report["counts"].get("PLANNED"), 1)
+        self.assertIn("The Magic Blade (1976) [imdbid-tt0074887]", report["items"][0]["target_paths"][0])
+
+    def test_missing_default_dataset_is_explicitly_reported(self):
+        video = self.downloads / "The.Magic.Blade.1976.mkv"
+        video.write_bytes(b"movie")
+        report = process(self.args(
+            "--mode", "import", "--source-path", str(self.downloads),
+            "--movie-library-path", str(self.movies), "--series-library-path", str(self.tv),
+            "--metadata-dir", str(self.root / "missing"), "--dry-run",
+        ))
+        self.assertEqual(report["counts"].get("METADATA_UNAVAILABLE"), 1)
+        self.assertFalse(any(self.movies.rglob("*")))
 
 
 if __name__ == "__main__":

@@ -8,9 +8,10 @@ compatibility: Python 3.10+; standard library only; no network access is require
 
 Use this skill to turn a download directory or an existing library into a safe,
 Jellyfin-friendly layout. The bundled CLI performs deterministic planning and
-execution; it does not scrape IMDb or invent metadata. A caller must provide a
-JSON metadata catalog, or integrate a provider that implements the same
-`search_title` / `get_title` contract.
+execution; it does not scrape IMDb or invent metadata. By default it uses an
+IMDb Public Dataset Provider backed by `title.basics.tsv.gz`. A caller can
+replace that provider with a JSON metadata catalog or another implementation of
+the same `search_title` / `get_title` contract.
 
 ## Safety contract
 
@@ -25,7 +26,31 @@ JSON metadata catalog, or integrate a provider that implements the same
 - Do not pass a source path and library path that overlap in import mode.
 - Symlinks are not followed. Do not broaden a path after validation.
 
-## Metadata catalog
+## Default Metadata Provider
+
+The default provider reads the official IMDb public title basics dataset from:
+
+```text
+$IMDB_DATASET_DIR/title.basics.tsv.gz
+```
+
+If `IMDB_DATASET_DIR` is unset, the default is
+`~/.cache/media-library-organizer/imdb`. Download or update it explicitly:
+
+```bash
+python3 scripts/update_imdb_dataset.py \
+  --dataset-dir ~/.cache/media-library-organizer/imdb
+```
+
+The update uses a temporary file and replaces the dataset only after the
+download completes. The organizer itself never downloads data during a media
+operation. If the dataset is unavailable, items receive
+`METADATA_UNAVAILABLE` and no filesystem changes are made.
+
+For small fixtures, offline operation, or a host-provided metadata snapshot,
+use `--metadata-file` instead.
+
+## JSON metadata catalog
 
 The bundled provider accepts either a JSON array or an object with a `titles`
 array. Each title should contain:
@@ -66,8 +91,9 @@ python3 scripts/organize_media.py \
   --report report.json
 ```
 
-After reviewing `report.json`, repeat with `--no-dry-run` to copy. For an
-existing library, use:
+Omit `--metadata-file` to use the default IMDb dataset provider, or pass
+`--metadata-dir` to select a dataset location. After reviewing `report.json`,
+repeat with `--no-dry-run` to copy. For an existing library, use:
 
 ```bash
 python3 scripts/organize_media.py \
