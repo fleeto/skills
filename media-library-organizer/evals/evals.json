@@ -1,23 +1,17 @@
 {
   "skill_name": "media-library-organizer",
   "evals": [
-    {
-      "id": 1,
-      "prompt": "整理下载目录里的电影和电视剧到 Jellyfin 媒体库，保留原始下载文件，先给我 dry-run 报告，不要覆盖已有剧集。",
-      "expected_output": "Uses the organizer in dry-run mode, classifies each item, preserves sources, reports conflicts, and makes no filesystem changes.",
-      "files": []
-    },
-    {
-      "id": 2,
-      "prompt": "把 Breaking.Bad.S03E04.mkv 和对应的 zh-CN.ass 导入现有 Breaking Bad 目录，确认它会归并到 Season 03，并且目标已有同名文件时跳过。",
-      "expected_output": "Plans or performs a safe import with the series IMDb identity, preserves the subtitle association, reuses the existing series root, and skips conflicts.",
-      "files": []
-    },
-    {
-      "id": 3,
-      "prompt": "这个文件 Crash.2004.mkv 可能对应多个 IMDb 条目，请分析但不要猜测，也不要对媒体库做任何改动。",
-      "expected_output": "Reports AMBIGUOUS or UNMATCHED candidates and performs no filesystem operation.",
-      "files": []
-    }
+    {"id": 1, "prompt": "有可靠 NFO 的电影需要整理，请报告 Provider 调用和操作计划。", "expected_output": "NFO 是唯一身份来源，不调用其它 Provider。", "files": []},
+    {"id": 2, "prompt": "NFO 与文件名年份冲突，执行整理。", "expected_output": "报告 METADATA_CONFLICT，不执行文件操作。", "files": []},
+    {"id": 3, "prompt": "IMDb Dataset 唯一命中电影后，是否还查询 TMDB？", "expected_output": "不查询后续 Provider。", "files": []},
+    {"id": 4, "prompt": "IMDb Dataset 无结果，TMDB 唯一命中电视剧。", "expected_output": "调用 TMDB，停止调用 TVDB 和更后 Provider。", "files": []},
+    {"id": 5, "prompt": "第一个 Provider 不可用，第二个 Provider 返回唯一结果。", "expected_output": "继续下一个 Provider，并记录 PROVIDER_UNAVAILABLE。", "files": []},
+    {"id": 6, "prompt": "Provider 返回两个无法区分的候选。", "expected_output": "报告 AMBIGUOUS 并停止，不修改文件。", "files": []},
+    {"id": 7, "prompt": "Import 一个带 movie.nfo 和字幕的电影。", "expected_output": "只复制视频和字幕；源 NFO 原位置、原文件名、原内容不变。", "files": []},
+    {"id": 8, "prompt": "Organize 一个需要随视频移动的 NFO。", "expected_output": "NFO 可移动或重命名，但字节不变，且不创建新 NFO。", "files": []},
+    {"id": 9, "prompt": "Organize 时 NFO 移动失败。", "expected_output": "视频和字幕回滚，报告 FAILED 及回滚结果。", "files": []},
+    {"id": 10, "prompt": "整理 Breaking.Bad.S03E04 及 zh-CN、en.forced、sdh 字幕。", "expected_output": "使用 Season 03，Episode 文件名不带 ID，字幕标签保持。", "files": []},
+    {"id": 11, "prompt": "对电影、字幕和 NFO 执行 dry-run。", "expected_output": "输出完整计划且不写入、移动、复制或重命名任何文件。", "files": []},
+    {"id": 12, "prompt": "重复执行一个目标内容未变化的 Import。", "expected_output": "报告 NOOP，不生成重复文件或持久化 Provider 缓存。", "files": []}
   ]
 }

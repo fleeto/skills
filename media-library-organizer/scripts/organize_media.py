@@ -19,6 +19,7 @@ import shutil
 import sys
 import tempfile
 import uuid
+import xml.etree.ElementTree as ET
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Iterable, Protocol
@@ -42,9 +43,16 @@ class MetadataProvider(Protocol):
     def search_title(self, title: str, year: int | None, media_type: str | None) -> list[dict[str, Any]]:
         ...
 
+    def get_title(self, imdb_id: str) -> dict[str, Any] | None:
+        ...
+
 
 class MetadataUnavailableError(RuntimeError):
     """The configured default metadata source is not available."""
+
+
+class ProviderUnavailableError(RuntimeError):
+    """A Provider cannot be queried during this invocation."""
 
 
 def metadata_score(wanted_title: str, record: dict[str, Any], year: int | None) -> float:
@@ -60,8 +68,75 @@ def metadata_score(wanted_title: str, record: dict[str, Any], year: int | None) 
         score += 0.15 if difference == 0 else (-0.15 if difference > 1 else 0)
     return score
 
-    def get_title(self, imdb_id: str) -> dict[str, Any] | None:
-        ...
+
+class ProviderChain:
+    """Run Providers in order and stop at the first non-empty result."""
+
+    def __init__(self, providers: Iterable[tuple[str, MetadataProvider]]):
+        self.providers = list(providers)
+        self.unavailable: list[str] = []
+
+    def search_title(self, title: str, year: int | None, media_type: str | None) -> tuple[str | None, list[dict[str, Any]]]:
+        for name, provider in self.providers:
+            if name.casefold() == "tvdb" and media_type == "movie":
+                continue
+            try:
+                candidates = provider.search_title(title, year, media_type)
+            except (ProviderUnavailableError, MetadataUnavailableError, OSError, TimeoutError):
+                self.unavailable.append(name)
+                continue
+            if candidates:
+                return name, candidates
+        return None, []
+
+
+@dataclasses.dataclass(frozen=True)
+class NfoEvidence:
+    path: Path
+    unique_ids: dict[str, str]
+    title: str | None
+    original_title: str | None
+    year: int | None
+    season: int | None
+    episode: int | None
+    parse_error: str | None = None
+
+
+class NfoOperation:
+    VALIDATED_ONLY = "VALIDATED_ONLY"
+    MOVED_UNCHANGED = "MOVED_UNCHANGED"
+    RENAMED_UNCHANGED = "RENAMED_UNCHANGED"
+    LEFT_IN_PLACE = "LEFT_IN_PLACE"
+
+
+class NfoReader:
+    """Read only identity fields from an existing NFO."""
+
+    def read(self, path: Path) -> NfoEvidence:
+        try:
+            root = ET.parse(path).getroot()
+            values: dict[str, str] = {}
+            unique_ids: dict[str, str] = {}
+            for element in root.iter():
+                name = element.tag.casefold().split("}")[-1]
+                if name == "uniqueid" and element.text:
+                    unique_ids[(element.attrib.get("type") or "unknown").casefold()] = element.text.strip()
+                elif name in {"title", "originaltitle", "year", "season", "episode", "id"} and element.text:
+                    values.setdefault(name, element.text.strip())
+            if values.get("id") and not unique_ids:
+                unique_ids["imdb" if values["id"].casefold().startswith("tt") else "unknown"] = values["id"]
+            return NfoEvidence(path, unique_ids, values.get("title"), values.get("originaltitle"),
+                               _int_or_none(values.get("year")), _int_or_none(values.get("season")),
+                               _int_or_none(values.get("episode")))
+        except (ET.ParseError, OSError, UnicodeError) as exc:
+            return NfoEvidence(path, {}, None, None, None, None, None, str(exc))
+
+
+def _int_or_none(value: str | None) -> int | None:
+    try:
+        return int(value) if value is not None else None
+    except ValueError:
+        return None
 
 
 class JsonMetadataProvider:
@@ -191,15 +266,36 @@ class MediaItem:
     target_root: Path | None = None
     target_video: Path | None = None
     target_sidecars: list[tuple[Path, Path]] = dataclasses.field(default_factory=list)
+    nfo_path: Path | None = None
+    nfo_evidence: NfoEvidence | None = None
+    target_nfo: Path | None = None
+    nfo_operation: str = NfoOperation.VALIDATED_ONLY
+    identity_source: str | None = None
+    provider: str | None = None
+    metadata_conflicts: list[str] = dataclasses.field(default_factory=list)
 
     def result(self, action: str | None = None, error_code: str | None = None) -> dict[str, Any]:
         return {
             "status": self.status,
             "action": action,
             "source_paths": [str(self.primary_video), *(str(p) for p in self.sidecars)],
-            "target_paths": ([str(self.target_video), *(str(dst) for _, dst in self.target_sidecars)]
+            "target_paths": ([str(self.target_video), *(str(dst) for _, dst in self.target_sidecars),
+                              *((str(self.target_nfo),) if self.target_nfo and self.nfo_operation != NfoOperation.LEFT_IN_PLACE else ())]
                              if self.target_video else []),
             "imdb_id": self.metadata.get("imdb_id") if self.metadata else None,
+            "confirmed_provider_ids": {
+                key: self.metadata.get(key) for key in ("imdb_id", "tmdb_id", "tvdb_id")
+                if self.metadata and self.metadata.get(key)
+            },
+            "identity_source": self.identity_source,
+            "provider": self.provider,
+            "nfo_path": str(self.nfo_path) if self.nfo_path else None,
+            "nfo_validation_status": (
+                "UNPARSEABLE" if self.nfo_evidence and self.nfo_evidence.parse_error
+                else "VALID" if self.nfo_evidence else "ABSENT"
+            ),
+            "nfo_operation": self.nfo_operation,
+            "metadata_conflicts": self.metadata_conflicts,
             "media_type": self.media_type,
             "season": self.parsed.season,
             "episode": self.parsed.episode,
@@ -274,6 +370,8 @@ def sidecar_candidates(video: Path, sidecars: Iterable[Path]) -> list[Path]:
     candidates = []
     video_key = normalize_text(video.stem)
     for sidecar in sidecars:
+        if sidecar.suffix.casefold() == ".nfo":
+            continue
         if sidecar.parent != video.parent:
             continue
         sidecar_key = normalize_text(sidecar.stem)
@@ -282,14 +380,96 @@ def sidecar_candidates(video: Path, sidecars: Iterable[Path]) -> list[Path]:
     return sorted(candidates)
 
 
-def match_metadata(item: MediaItem, provider: MetadataProvider | None) -> None:
+def nfo_candidates(video: Path, sidecars: Iterable[Path]) -> list[Path]:
+    names = {f"{video.stem.casefold()}.nfo", "movie.nfo", "tvshow.nfo", "season.nfo"}
+    return sorted(path for path in sidecars
+                  if path.parent == video.parent and path.name.casefold() in names)
+
+
+def attach_nfo(item: MediaItem, candidates: list[Path]) -> None:
+    if not candidates:
+        return
+    # A same-directory specific NFO wins over a directory-level NFO. Multiple
+    # directory-level NFO files are ambiguous local evidence.
+    specific = [path for path in candidates if path.stem.casefold() == item.primary_video.stem.casefold()]
+    if len(specific) == 1:
+        item.nfo_path = specific[0]
+    elif len(candidates) == 1:
+        item.nfo_path = candidates[0]
+    else:
+        item.status = "AMBIGUOUS"
+        item.reason = "Multiple NFO candidates"
+        return
+    item.nfo_evidence = NfoReader().read(item.nfo_path)
+    if item.nfo_evidence.parse_error:
+        item.status = "NFO_UNPARSEABLE"
+        item.reason = item.nfo_evidence.parse_error
+
+
+def nfo_identity_matches(item: MediaItem) -> bool:
+    evidence = item.nfo_evidence
+    if not evidence or evidence.parse_error:
+        return False
+    nfo_title = evidence.title or evidence.original_title
+    if nfo_title and normalize_text(nfo_title) != normalize_text(item.parsed.title):
+        item.metadata_conflicts.append(f"NFO title conflicts with filename: {nfo_title}")
+        return False
+    if evidence.year and item.parsed.year and evidence.year != item.parsed.year:
+        item.metadata_conflicts.append(f"NFO year conflicts with filename: {evidence.year}")
+        return False
+    if evidence.season is not None and item.parsed.season is not None and evidence.season != item.parsed.season:
+        item.metadata_conflicts.append("NFO season conflicts with filename")
+        return False
+    if evidence.episode is not None and item.parsed.episode is not None and evidence.episode != item.parsed.episode:
+        item.metadata_conflicts.append("NFO episode conflicts with filename")
+        return False
+    return bool(evidence.unique_ids or nfo_title)
+
+
+def match_metadata(item: MediaItem, provider: MetadataProvider | ProviderChain | None) -> None:
+    if item.nfo_evidence and not item.nfo_evidence.parse_error:
+        if not nfo_identity_matches(item):
+            item.status, item.reason = "METADATA_CONFLICT", "; ".join(item.metadata_conflicts)
+            return
+        ids: dict[str, str] = {}
+        for key, value in item.nfo_evidence.unique_ids.items():
+            if key in {"imdb", "imdbid"}:
+                ids["imdb_id"] = value
+            elif key in {"tmdb", "tmdbid"}:
+                ids["tmdb_id"] = value
+            elif key in {"tvdb", "tvdbid"}:
+                ids["tvdb_id"] = value
+        item.metadata = {
+            **ids,
+            "title": item.nfo_evidence.title or item.nfo_evidence.original_title or item.parsed.title,
+            "year": item.nfo_evidence.year or item.parsed.year,
+            "start_year": item.nfo_evidence.year or item.parsed.year,
+            "media_type": "series" if item.parsed.season is not None else "movie",
+        }
+        item.media_type = item.metadata["media_type"]
+        item.identity_source = "nfo"
+        item.provider = "nfo"
+        item.status = "MATCHED"
+        return
     if provider is None:
-        item.status, item.reason = "METADATA_UNAVAILABLE", "No usable Metadata Provider was configured"
+        item.status, item.reason = "PROVIDER_UNAVAILABLE", "No usable Metadata Provider was configured"
         return
     requested_type = "series" if item.parsed.season is not None else None
-    candidates = provider.search_title(item.parsed.title, item.parsed.year, requested_type)
+    provider_name = None
+    if isinstance(provider, ProviderChain):
+        provider_name, candidates = provider.search_title(item.parsed.title, item.parsed.year, requested_type)
+    else:
+        try:
+            candidates = provider.search_title(item.parsed.title, item.parsed.year, requested_type)
+        except (ProviderUnavailableError, MetadataUnavailableError, OSError, TimeoutError):
+            item.status, item.reason = "PROVIDER_UNAVAILABLE", "Metadata Provider unavailable"
+            return
+        provider_name = provider.__class__.__name__
     if not candidates:
-        item.status, item.reason = "UNMATCHED", "No metadata candidate"
+        if isinstance(provider, ProviderChain) and provider.unavailable:
+            item.status, item.reason = "PROVIDER_UNAVAILABLE", ", ".join(provider.unavailable)
+        else:
+            item.status, item.reason = "UNMATCHED", "No metadata candidate"
         return
     first = candidates[0]
     first_title = normalize_text(str(first.get("title", "")))
@@ -309,6 +489,8 @@ def match_metadata(item: MediaItem, provider: MetadataProvider | None) -> None:
         item.status, item.reason = "AMBIGUOUS", "Episode matched a non-series title"
         return
     item.metadata = first
+    item.provider = provider_name
+    item.identity_source = provider_name
     item.media_type = "series" if requested_type == "series" else str(first.get("media_type", "movie")).lower()
     if item.media_type not in {"movie", "series"}:
         item.status, item.reason = "AMBIGUOUS", "Unsupported metadata media type"
@@ -317,34 +499,45 @@ def match_metadata(item: MediaItem, provider: MetadataProvider | None) -> None:
     item.status = "MATCHED"
 
 
-def find_existing_series(library: Path, imdb_id: str) -> Path | None:
-    marker = f"[imdbid-{imdb_id}]".casefold()
+def find_existing_series(library: Path, metadata: dict[str, Any]) -> Path | None:
+    markers = [f"[{key[:-3]}id-{metadata[key]}]".casefold()
+               for key in ("imdb_id", "tmdb_id", "tvdb_id") if metadata.get(key)]
     for path in library.rglob("*"):
-        if path.is_dir() and marker in path.name.casefold():
+        if path.is_dir() and any(marker in path.name.casefold() for marker in markers):
             return path
     return None
 
 
+def provider_id_suffix(metadata: dict[str, Any]) -> str:
+    labels = (("imdb_id", "imdbid"), ("tmdb_id", "tmdbid"), ("tvdb_id", "tvdbid"))
+    return "".join(f" [{label}-{metadata[key]}]" for key, label in labels if metadata.get(key))
+
+
 def build_targets(item: MediaItem, movie_library: Path | None, series_library: Path | None) -> None:
     assert item.metadata is not None
-    imdb_id = str(item.metadata["imdb_id"])
     title = safe_component(str(item.metadata.get("title") or item.parsed.title))
     year = item.metadata.get("year", item.metadata.get("start_year", item.parsed.year))
     year_text = f" ({int(year)})" if year else ""
+    ids_text = provider_id_suffix(item.metadata)
+    if not ids_text:
+        item.status, item.reason = "UNMATCHED", "Winning metadata had no confirmed provider ID"
+        return
     if item.media_type == "movie":
         assert movie_library is not None
-        root = movie_library / f"{title}{year_text} [imdbid-{imdb_id}]"
+        root = movie_library / f"{title}{year_text}{ids_text}"
         item.target_root = root
         item.target_video = root / f"{root.name}{item.primary_video.suffix.lower()}"
         for sidecar in item.sidecars:
             suffix = sidecar.stem[len(item.primary_video.stem):]
             target_name = item.target_video.stem + suffix + sidecar.suffix.lower()
             item.target_sidecars.append((sidecar, root / target_name))
+        if item.nfo_path:
+            item.target_nfo = root / ("movie.nfo" if item.nfo_path.stem.casefold() == "movie" else item.target_video.stem + ".nfo")
         return
     assert series_library is not None
-    root = find_existing_series(series_library, imdb_id)
+    root = find_existing_series(series_library, item.metadata)
     if root is None:
-        root = series_library / f"{title}{year_text} [imdbid-{imdb_id}]"
+        root = series_library / f"{title}{year_text}{ids_text}"
     season = item.parsed.season or 0
     season_dir = root / f"Season {season:02d}"
     item.target_root = root
@@ -356,6 +549,10 @@ def build_targets(item: MediaItem, movie_library: Path | None, series_library: P
             remainder = sidecar.stem[len(item.primary_video.stem):]
         target_name = item.target_video.stem + remainder + sidecar.suffix.lower()
         item.target_sidecars.append((sidecar, item.target_video.parent / target_name))
+    if item.nfo_path:
+        item.target_nfo = (root / "tvshow.nfo" if item.nfo_path.name.casefold() == "tvshow.nfo"
+                           else season_dir / "season.nfo" if item.nfo_path.name.casefold() == "season.nfo"
+                           else item.target_video.parent / (item.target_video.stem + ".nfo"))
 
 
 def path_is_within(path: Path, root: Path) -> bool:
@@ -432,6 +629,14 @@ def atomic_move(source: Path, target: Path) -> None:
 def execute_item(item: MediaItem, mode: str, dry_run: bool, target_root: Path) -> dict[str, Any]:
     assert item.target_video is not None
     sources_targets = [(item.primary_video, item.target_video), *item.target_sidecars]
+    if mode == "organize" and item.nfo_path and item.target_nfo:
+        sources_targets.append((item.nfo_path, item.target_nfo))
+        item.nfo_operation = (NfoOperation.RENAMED_UNCHANGED
+                              if item.nfo_path.name != item.target_nfo.name
+                              else NfoOperation.MOVED_UNCHANGED)
+    elif mode == "import" and item.nfo_path:
+        item.nfo_operation = NfoOperation.LEFT_IN_PLACE
+        item.target_nfo = None
     if all(dst.exists() and same_content(src, dst) for src, dst in sources_targets):
         item.status = "NOOP"
         return item.result("noop")
@@ -492,13 +697,15 @@ def process(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError("source_path and library paths must not overlap in import mode")
     provider_error: str | None = None
     if args.metadata_file:
-        provider: MetadataProvider | None = JsonMetadataProvider.from_file(Path(args.metadata_file))
+        provider: MetadataProvider | ProviderChain | None = ProviderChain(
+            [("metadata_catalog", JsonMetadataProvider.from_file(Path(args.metadata_file)))]
+        )
     else:
         dataset_dir = Path(args.metadata_dir or os.environ.get(
             "IMDB_DATASET_DIR", str(Path.home() / ".cache" / "media-library-organizer" / "imdb")
         ))
         try:
-            provider = ImdbDatasetProvider(dataset_dir)
+            provider = ProviderChain([("imdb_dataset", ImdbDatasetProvider(dataset_dir))])
         except MetadataUnavailableError as exc:
             provider = None
             provider_error = str(exc)
@@ -513,14 +720,23 @@ def process(args: argparse.Namespace) -> dict[str, Any]:
             results.append({"status": "UNSUPPORTED_FORMAT", "source_paths": [str(video)], "error_code": "UNSUPPORTED_FORMAT"})
             continue
         item = MediaItem(video, sidecar_candidates(video, sidecars), parsed)
+        attach_nfo(item, nfo_candidates(video, sidecars))
+        if item.nfo_path:
+            associated_sidecars.add(item.nfo_path)
+        if item.status in {"AMBIGUOUS", "METADATA_CONFLICT"}:
+            results.append(item.result(error_code=item.status))
+            continue
         associated_sidecars.update(item.sidecars)
         match_metadata(item, provider)
-        if item.status == "METADATA_UNAVAILABLE":
+        if item.status in {"METADATA_UNAVAILABLE", "PROVIDER_UNAVAILABLE"}:
             item.reason = provider_error
         if item.status != "MATCHED":
             results.append(item.result(error_code=item.status))
             continue
         build_targets(item, movie_library, series_library)
+        if item.status != "MATCHED":
+            results.append(item.result(error_code=item.status))
+            continue
         library_root = movie_library if item.media_type == "movie" else series_library
         assert library_root is not None
         validate_item(item, source_root, library_root)
@@ -529,6 +745,11 @@ def process(args: argparse.Namespace) -> dict[str, Any]:
             continue
         results.append(execute_item(item, args.mode, args.dry_run, library_root))
     for sidecar in sidecars:
+        if sidecar.suffix.casefold() == ".nfo":
+            # Existing NFO is handled as identity evidence, and in organize
+            # mode as an unchanged path operation. It is never an unmatched
+            # copy candidate.
+            continue
         if sidecar not in associated_sidecars:
             results.append({
                 "status": "UNMATCHED_SIDECAR",
