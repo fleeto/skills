@@ -1,0 +1,23 @@
+{
+  "skill_name": "media-library-organizer",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "整理下载目录里的电影和电视剧到 Jellyfin 媒体库，保留原始下载文件，先给我 dry-run 报告，不要覆盖已有剧集。",
+      "expected_output": "Uses the organizer in dry-run mode, classifies each item, preserves sources, reports conflicts, and makes no filesystem changes.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "把 Breaking.Bad.S03E04.mkv 和对应的 zh-CN.ass 导入现有 Breaking Bad 目录，确认它会归并到 Season 03，并且目标已有同名文件时跳过。",
+      "expected_output": "Plans or performs a safe import with the series IMDb identity, preserves the subtitle association, reuses the existing series root, and skips conflicts.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "这个文件 Crash.2004.mkv 可能对应多个 IMDb 条目，请分析但不要猜测，也不要对媒体库做任何改动。",
+      "expected_output": "Reports AMBIGUOUS or UNMATCHED candidates and performs no filesystem operation.",
+      "files": []
+    }
+  ]
+}
